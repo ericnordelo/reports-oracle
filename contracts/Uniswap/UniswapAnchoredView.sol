@@ -99,8 +99,8 @@ contract UniswapAnchoredView is UniswapConfig {
                 require(uniswapMarket != address(0), "reported prices must have an anchor");
                 bytes32 symbolHash = config.symbolHash;
                 uint256 cumulativePrice = currentCumulativePrice(config);
-                oldObservations[symbolHash].timestamp = block.timestamp;
-                newObservations[symbolHash].timestamp = block.timestamp;
+                oldObservations[symbolHash].timestamp = block.timestamp; // solhint-disable-line
+                newObservations[symbolHash].timestamp = block.timestamp; // solhint-disable-line
                 oldObservations[symbolHash].acc = cumulativePrice;
                 newObservations[symbolHash].acc = cumulativePrice;
                 emit UniswapWindowUpdated(
