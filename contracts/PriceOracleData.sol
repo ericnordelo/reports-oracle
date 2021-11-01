@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0
-
 pragma solidity ^0.8.4;
 
 import "./Signature.sol";
@@ -25,14 +24,14 @@ contract PriceOracleData {
     event UpdateFailed(uint64 priorTimestamp, uint256 messageTimestamp, uint256 blockTimestamp);
 
     /**
-     * @notice write a bunch of signed reports to the authenticated storage mapping
-     * @param message_ the payload containing the timestamp, and (key, value) pairs
+     * @notice write a signed report to the authenticated storage mapping
+     * @param message_ the payload containing the timestamp, and (key, value) pair
      * @param signature_ the cryptographic signature of the message payload, authorizing the source to write
-     * @return keys the keys that were written
+     * @return key the key that was written
      */
-    function put(bytes calldata message_, bytes calldata signature_) external returns (string memory keys) {
-        (address source, uint64 timestamp, string memory key, uint64 value) = message_.decode(signature_);
-        return putInternal(source, timestamp, key, value);
+    function put(bytes calldata message_, bytes calldata signature_) external returns (string memory key) {
+        (address source, uint64 timestamp, string memory key_, uint64 value) = message_.decode(signature_);
+        return putInternal(source, timestamp, key_, value);
     }
 
     function putInternal(
