@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.4;
 
-interface CErc20 {
-    function underlying() external view returns (address);
-}
+import "../interfaces/IcERC20.sol";
 
 contract UniswapConfig {
     /// @dev Describe how to interpret the fixedPrice in the TokenConfig.
@@ -28,7 +26,7 @@ contract UniswapConfig {
 
     /// @notice the max number of tokens this contract is hardcoded to support
     /// @dev Do not change this variable without updating all the fields throughout the contract.
-    uint256 public constant MAX_TOKENS = 5;
+    uint256 public constant MAX_TOKENS = 6;
 
     /// @notice the number of tokens this contract actually supports
     uint256 public immutable numTokens;
@@ -38,55 +36,63 @@ contract UniswapConfig {
     address internal immutable cToken02;
     address internal immutable cToken03;
     address internal immutable cToken04;
+    address internal immutable cToken05;
 
     address internal immutable underlying00;
     address internal immutable underlying01;
     address internal immutable underlying02;
     address internal immutable underlying03;
     address internal immutable underlying04;
+    address internal immutable underlying05;
 
     bytes32 internal immutable symbolHash00;
     bytes32 internal immutable symbolHash01;
     bytes32 internal immutable symbolHash02;
     bytes32 internal immutable symbolHash03;
     bytes32 internal immutable symbolHash04;
+    bytes32 internal immutable symbolHash05;
 
     uint256 internal immutable baseUnit00;
     uint256 internal immutable baseUnit01;
     uint256 internal immutable baseUnit02;
     uint256 internal immutable baseUnit03;
     uint256 internal immutable baseUnit04;
+    uint256 internal immutable baseUnit05;
 
     PriceSource internal immutable priceSource00;
     PriceSource internal immutable priceSource01;
     PriceSource internal immutable priceSource02;
     PriceSource internal immutable priceSource03;
     PriceSource internal immutable priceSource04;
+    PriceSource internal immutable priceSource05;
 
     uint256 internal immutable fixedPrice00;
     uint256 internal immutable fixedPrice01;
     uint256 internal immutable fixedPrice02;
     uint256 internal immutable fixedPrice03;
     uint256 internal immutable fixedPrice04;
+    uint256 internal immutable fixedPrice05;
 
     address internal immutable uniswapMarket00;
     address internal immutable uniswapMarket01;
     address internal immutable uniswapMarket02;
     address internal immutable uniswapMarket03;
     address internal immutable uniswapMarket04;
+    address internal immutable uniswapMarket05;
 
     bool internal immutable isUniswapReversed00;
     bool internal immutable isUniswapReversed01;
     bool internal immutable isUniswapReversed02;
     bool internal immutable isUniswapReversed03;
     bool internal immutable isUniswapReversed04;
+    bool internal immutable isUniswapReversed05;
 
     /**
      * @notice Construct an immutable store of configs into the contract data
      * @param configs the configs for the supported assets
      */
     constructor(TokenConfig[] memory configs) {
-        require(configs.length <= MAX_TOKENS, "too many configs");
+        require(configs.length <= MAX_TOKENS, "Too many configs");
         numTokens = configs.length;
 
         cToken00 = get(configs, 0).cToken;
@@ -94,48 +100,56 @@ contract UniswapConfig {
         cToken02 = get(configs, 2).cToken;
         cToken03 = get(configs, 3).cToken;
         cToken04 = get(configs, 4).cToken;
+        cToken05 = get(configs, 5).cToken;
 
         underlying00 = get(configs, 0).underlying;
         underlying01 = get(configs, 1).underlying;
         underlying02 = get(configs, 2).underlying;
         underlying03 = get(configs, 3).underlying;
         underlying04 = get(configs, 4).underlying;
+        underlying05 = get(configs, 5).underlying;
 
         symbolHash00 = get(configs, 0).symbolHash;
         symbolHash01 = get(configs, 1).symbolHash;
         symbolHash02 = get(configs, 2).symbolHash;
         symbolHash03 = get(configs, 3).symbolHash;
         symbolHash04 = get(configs, 4).symbolHash;
+        symbolHash05 = get(configs, 5).symbolHash;
 
         baseUnit00 = get(configs, 0).baseUnit;
         baseUnit01 = get(configs, 1).baseUnit;
         baseUnit02 = get(configs, 2).baseUnit;
         baseUnit03 = get(configs, 3).baseUnit;
         baseUnit04 = get(configs, 4).baseUnit;
+        baseUnit05 = get(configs, 5).baseUnit;
 
         priceSource00 = get(configs, 0).priceSource;
         priceSource01 = get(configs, 1).priceSource;
         priceSource02 = get(configs, 2).priceSource;
         priceSource03 = get(configs, 3).priceSource;
         priceSource04 = get(configs, 4).priceSource;
+        priceSource05 = get(configs, 5).priceSource;
 
         fixedPrice00 = get(configs, 0).fixedPrice;
         fixedPrice01 = get(configs, 1).fixedPrice;
         fixedPrice02 = get(configs, 2).fixedPrice;
         fixedPrice03 = get(configs, 3).fixedPrice;
         fixedPrice04 = get(configs, 4).fixedPrice;
+        fixedPrice05 = get(configs, 5).fixedPrice;
 
         uniswapMarket00 = get(configs, 0).uniswapMarket;
         uniswapMarket01 = get(configs, 1).uniswapMarket;
         uniswapMarket02 = get(configs, 2).uniswapMarket;
         uniswapMarket03 = get(configs, 3).uniswapMarket;
         uniswapMarket04 = get(configs, 4).uniswapMarket;
+        uniswapMarket05 = get(configs, 5).uniswapMarket;
 
         isUniswapReversed00 = get(configs, 0).isUniswapReversed;
         isUniswapReversed01 = get(configs, 1).isUniswapReversed;
         isUniswapReversed02 = get(configs, 2).isUniswapReversed;
         isUniswapReversed03 = get(configs, 3).isUniswapReversed;
         isUniswapReversed04 = get(configs, 4).isUniswapReversed;
+        isUniswapReversed05 = get(configs, 5).isUniswapReversed;
     }
 
     function get(TokenConfig[] memory configs, uint256 i) internal pure returns (TokenConfig memory) {
@@ -159,6 +173,7 @@ contract UniswapConfig {
         if (cToken == cToken02) return 2;
         if (cToken == cToken03) return 3;
         if (cToken == cToken04) return 4;
+        if (cToken == cToken05) return 5;
 
         return type(uint256).max;
     }
@@ -169,6 +184,7 @@ contract UniswapConfig {
         if (underlying == underlying02) return 2;
         if (underlying == underlying03) return 3;
         if (underlying == underlying04) return 4;
+        if (underlying == underlying05) return 5;
 
         return type(uint256).max;
     }
@@ -179,10 +195,9 @@ contract UniswapConfig {
         if (symbolHash == symbolHash02) return 2;
         if (symbolHash == symbolHash03) return 3;
         if (symbolHash == symbolHash04) return 4;
+        if (symbolHash == symbolHash05) return 5;
 
-        unchecked {
-            return type(uint256).max;
-        }
+        return type(uint256).max;
     }
 
     /**
@@ -191,7 +206,7 @@ contract UniswapConfig {
      * @return config the config object
      */
     function getTokenConfig(uint256 i) public view returns (TokenConfig memory config) {
-        require(i < numTokens, "token config not found");
+        require(i < numTokens, "Token config not found");
 
         if (i == 0)
             return
@@ -253,6 +268,18 @@ contract UniswapConfig {
                     uniswapMarket: uniswapMarket04,
                     isUniswapReversed: isUniswapReversed04
                 });
+        if (i == 5)
+            return
+                TokenConfig({
+                    cToken: cToken05,
+                    underlying: underlying05,
+                    symbolHash: symbolHash05,
+                    baseUnit: baseUnit05,
+                    priceSource: priceSource05,
+                    fixedPrice: fixedPrice05,
+                    uniswapMarket: uniswapMarket05,
+                    isUniswapReversed: isUniswapReversed05
+                });
     }
 
     /**
@@ -275,7 +302,7 @@ contract UniswapConfig {
             return getTokenConfig(index);
         }
 
-        revert("token config not found");
+        revert("Token config not found");
     }
 
     /**
@@ -290,7 +317,7 @@ contract UniswapConfig {
             return getTokenConfig(index);
         }
 
-        return getTokenConfigByUnderlying(CErc20(cToken).underlying());
+        return getTokenConfigByUnderlying(IcERC20(cToken).underlying());
     }
 
     /**
@@ -304,6 +331,6 @@ contract UniswapConfig {
             return getTokenConfig(index);
         }
 
-        revert("token config not found");
+        revert("Token config not found");
     }
 }
