@@ -149,7 +149,7 @@ async function setup({ isMockedView, freeze }) {
 
   function postPrices(timestamp, prices2dArr, symbols, signer = reporter) {
     let { messages, signatures } = prices2dArr.reduce(
-      ({ messages, signatures }, prices, i) => {
+      ({ messages, signatures }, prices) => {
         const signedMessages = sign(encode('prices', timestamp, prices), signer.privateKey);
 
         return signedMessages.reduce(
@@ -207,7 +207,8 @@ describe('UniswapAnchoredView', () => {
       await uniswapAnchoredView.setAnchorPrice('ETH', 91e6);
       await postPrices(timestamp, [[['ETH', 91]]], ['ETH'], reporter);
 
-      await postPrices(timestamp, [[['ETH', 95]]], ['ETH'], nonSource);
+      const tx = await postPrices(timestamp, [[['ETH', 95]]], ['ETH'], nonSource);
+      expectEvent.notEmitted(tx, 'PriceGuarded');
 
       expect((await uniswapAnchoredView.prices(keccak256('ETH'))).toString()).to.be.equal(uint(91e6));
     });
@@ -217,140 +218,118 @@ describe('UniswapAnchoredView', () => {
       await uniswapAnchoredView.setAnchorPrice('ETH', 91e6);
       const tx = await postPrices(timestamp, [[['ETH', 91]]], ['ETH']);
 
+      expectEvent.notEmitted(tx, 'PriceGuarded');
       expectEvent(tx, 'PriceUpdated', { price: uint(91e6), symbol: 'ETH' });
 
       expect((await uniswapAnchoredView.prices(keccak256('ETH'))).toString()).to.be.equal(uint(91e6));
       expect((await priceData.getPrice(reporter.address, 'ETH')).toString()).to.be.equal(uint(91e6));
     });
 
-    // it('should update view if ERC20 price is within anchor bounds', async () => {
-    //   const timestamp = time() - 5;
-    //   await send(uniswapAnchoredView, 'setAnchorPrice', ['REP', 17e6]);
-    //   const tx = await postPrices(timestamp, [[['REP', 17]]], ['REP']);
+    it('should update view if ERC20 price is within anchor bounds', async () => {
+      const timestamp = time() - 5;
+      await uniswapAnchoredView.setAnchorPrice('REP', 17e6);
+      const tx = await postPrices(timestamp, [[['REP', 17]]], ['REP']);
 
-    //   expect(tx.events.PriceGuarded).toBe(undefined);
-    //   expect(tx.events.PriceUpdated.returnValues.price).numEquals(17e6);
-    //   expect(tx.events.PriceUpdated.returnValues.symbol).toBe('REP');
-    //   expect(await call(uniswapAnchoredView, 'prices', [keccak256('REP')])).numEquals(17e6);
-    //   expect(await call(priceData, 'getPrice', [reporter.address, 'REP'])).numEquals(17e6);
-    // });
+      expectEvent.notEmitted(tx, 'PriceGuarded');
+      expectEvent(tx, 'PriceUpdated', { price: uint(17e6), symbol: 'REP' });
 
-    // it('should not update view if ETH price is below anchor bounds', async () => {
-    //   // anchorMantissa is 1e17, so 10% tolerance
-    //   const timestamp = time() - 5;
-    //   await send(uniswapAnchoredView, 'setAnchorPrice', ['ETH', 89.9e6]);
-    //   const tx = await postPrices(timestamp, [[['ETH', 100]]], ['ETH']);
+      expect((await uniswapAnchoredView.prices(keccak256('REP'))).toString()).to.be.equal(uint(17e6));
+      expect((await priceData.getPrice(reporter.address, 'REP')).toString()).to.be.equal(uint(17e6));
+    });
 
-    //   expect(tx.events.PriceGuarded.returnValues.symbol).toBe('ETH');
-    //   expect(tx.events.PriceGuarded.returnValues.reporter).numEquals(100e6);
-    //   expect(tx.events.PriceGuarded.returnValues.anchor).numEquals(89.9e6);
-    //   expect(tx.events.PriceUpdated).toBe(undefined);
-    //   expect(await call(uniswapAnchoredView, 'prices', [keccak256('ETH')])).numEquals(0);
-    //   expect(await call(priceData, 'getPrice', [reporter.address, 'ETH'])).numEquals(100e6);
-    // });
+    it('should not update view if ETH price is below anchor bounds', async () => {
+      // anchorMantissa is 1e17, so 10% tolerance
+      const timestamp = time() - 5;
+      await uniswapAnchoredView.setAnchorPrice('ETH', 89.9e6);
+      const tx = await postPrices(timestamp, [[['ETH', 100]]], ['ETH']);
 
-    // it('should not update view if ERC20 price is below anchor bounds', async () => {
-    //   const timestamp = time() - 5;
-    //   // anchorMantissa is 1e17, so 10% tolerance
-    //   await send(uniswapAnchoredView, 'setAnchorPrice', ['REP', 15e6]);
-    //   const tx = await postPrices(timestamp, [[['REP', 17]]], ['REP']);
+      expectEvent.notEmitted(tx, 'PriceUpdated');
+      expectEvent(tx, 'PriceGuarded', { reporter: uint(100e6), anchor: uint(89.9e6), symbol: 'ETH' });
 
-    //   expect(tx.events.PriceGuarded.returnValues.reporter).numEquals(17e6);
-    //   expect(tx.events.PriceGuarded.returnValues.anchor).numEquals(15e6);
-    //   expect(await call(uniswapAnchoredView, 'prices', [keccak256('REP')])).numEquals(0);
-    //   expect(await call(priceData, 'getPrice', [reporter.address, 'REP'])).numEquals(17e6);
-    // });
+      expect((await uniswapAnchoredView.prices(keccak256('ETH'))).toString()).to.be.equal(uint(0));
+      expect((await priceData.getPrice(reporter.address, 'ETH')).toString()).to.be.equal(uint(100e6));
+    });
 
-    // it('should not update view if ETH price is above anchor bounds', async () => {
-    //   // anchorMantissa is 1e17, so 10% tolerance
-    //   const timestamp = time() - 5;
-    //   await send(uniswapAnchoredView, 'setAnchorPrice', ['ETH', 110.1e6]);
-    //   const tx = await postPrices(timestamp, [[['ETH', 100]]], ['ETH']);
+    it('should not update view if ERC20 price is below anchor bounds', async () => {
+      const timestamp = time() - 5;
+      // anchorMantissa is 1e17, so 10% tolerance
+      await uniswapAnchoredView.setAnchorPrice('REP', 15e6);
+      const tx = await postPrices(timestamp, [[['REP', 17]]], ['REP']);
 
-    //   expect(tx.events.PriceGuarded.returnValues.reporter).numEquals(100e6);
-    //   expect(tx.events.PriceGuarded.returnValues.anchor).numEquals(110.1e6);
-    //   expect(tx.events.PriceUpdated).toBe(undefined);
-    //   expect(await call(uniswapAnchoredView, 'prices', [keccak256('ETH')])).numEquals(0);
-    //   expect(await call(priceData, 'getPrice', [reporter.address, 'ETH'])).numEquals(100e6);
-    // });
+      expectEvent(tx, 'PriceGuarded', { reporter: uint(17e6), anchor: uint(15e6), symbol: 'REP' });
 
-    // it('should not update view if ERC20 price is above anchor bounds', async () => {
-    //   const timestamp = time() - 5;
-    //   // anchorMantissa is 1e17, so 10% tolerance
-    //   await send(uniswapAnchoredView, 'setAnchorPrice', ['REP', 19e6]);
-    //   const tx = await postPrices(timestamp, [[['REP', 17]]], ['REP']);
+      expect((await uniswapAnchoredView.prices(keccak256('REP'))).toString()).to.be.equal(uint(0));
+      expect((await priceData.getPrice(reporter.address, 'REP')).toString()).to.be.equal(uint(17e6));
+    });
 
-    //   expect(tx.events.PriceGuarded.returnValues.reporter).numEquals(17e6);
-    //   expect(tx.events.PriceGuarded.returnValues.anchor).numEquals(19e6);
-    //   expect(await call(uniswapAnchoredView, 'prices', [keccak256('REP')])).numEquals(0);
-    //   expect(await call(priceData, 'getPrice', [reporter.address, 'REP'])).numEquals(17e6);
-    // });
+    it('should not update view if ETH price is above anchor bounds', async () => {
+      // anchorMantissa is 1e17, so 10% tolerance
+      const timestamp = time() - 5;
+      await uniswapAnchoredView.setAnchorPrice('ETH', 110.1e6);
+      const tx = await postPrices(timestamp, [[['ETH', 100]]], ['ETH']);
 
-    // it('should revert on posting arrays of messages and signatures with different lengths', async () => {
-    //   await expect(send(uniswapAnchoredView, 'postPrices', [['0xabc'], ['0x123', '0x123'], []])).rejects.toRevert(
-    //     'revert messages and signatures must be 1:1'
-    //   );
+      expectEvent.notEmitted(tx, 'PriceUpdated');
+      expectEvent(tx, 'PriceGuarded', { reporter: uint(100e6), anchor: uint(110.1e6), symbol: 'ETH' });
 
-    //   await expect(send(uniswapAnchoredView, 'postPrices', [['0xabc', '0xabc'], ['0x123'], []])).rejects.toRevert(
-    //     'revert messages and signatures must be 1:1'
-    //   );
-    // });
+      expect((await uniswapAnchoredView.prices(keccak256('ETH'))).toString()).to.be.equal(uint(0));
+      expect((await priceData.getPrice(reporter.address, 'ETH')).toString()).to.be.equal(uint(100e6));
+    });
 
-    // it('should revert on posting arrays with invalid symbols', async () => {
-    //   const timestamp = time() - 5;
-    //   await send(uniswapAnchoredView, 'setAnchorPrice', ['ETH', 91e6]);
+    it('should not update view if ERC20 price is above anchor bounds', async () => {
+      const timestamp = time() - 5;
+      // anchorMantissa is 1e17, so 10% tolerance
+      await uniswapAnchoredView.setAnchorPrice('REP', 19e6);
+      const tx = await postPrices(timestamp, [[['REP', 17]]], ['REP']);
 
-    //   await expect(postPrices(timestamp, [[['ETH', 91]]], ['HOHO'])).rejects.toRevert('revert token config not found');
+      expectEvent(tx, 'PriceGuarded', { reporter: uint(17e6), anchor: uint(19e6), symbol: 'REP' });
 
-    //   await expect(postPrices(timestamp, [[['HOHO', 91]]], ['HOHO'])).rejects.toRevert('revert token config not found');
+      expect((await uniswapAnchoredView.prices(keccak256('REP'))).toString()).to.be.equal(uint(0));
+      expect((await priceData.getPrice(reporter.address, 'REP')).toString()).to.be.equal(uint(17e6));
+    });
 
-    //   await expect(
-    //     postPrices(
-    //       timestamp,
-    //       [
-    //         [
-    //           ['ETH', 91],
-    //           ['WBTC', 1000],
-    //         ],
-    //       ],
-    //       ['ETH', 'HOHO']
-    //     )
-    //   ).rejects.toRevert('revert token config not found');
-    // });
+    it('should revert on posting arrays of messages and signatures with different lengths', async () => {
+      await expect(uniswapAnchoredView.postPrices(['0xabc'], ['0x123', '0x123'], [])).to.be.revertedWith(
+        'Messages and signatures must be 1:1'
+      );
 
-    // it('should revert on posting arrays with invalid symbols', async () => {
-    //   const timestamp = time() - 5;
-    //   await send(uniswapAnchoredView, 'setAnchorPrice', ['ETH', 91e6]);
+      await expect(uniswapAnchoredView.postPrices(['0xabc', '0xabc'], ['0x123'], [])).to.be.revertedWith(
+        'Messages and signatures must be 1:1'
+      );
+    });
 
-    //   await expect(postPrices(timestamp, [[['ETH', 91]]], ['HOHO'])).rejects.toRevert('revert token config not found');
+    it('should revert on posting arrays with invalid symbols', async () => {
+      const timestamp = time() - 5;
+      await uniswapAnchoredView.setAnchorPrice('REP', 91e6);
 
-    //   await expect(postPrices(timestamp, [[['HOHO', 91]]], ['HOHO'])).rejects.toRevert('revert token config not found');
+      await expect(postPrices(timestamp, [[['ETH', 91]]], ['HOHO'])).to.be.revertedWith('Token config not found');
 
-    //   await expect(
-    //     postPrices(
-    //       timestamp,
-    //       [
-    //         [
-    //           ['ETH', 91],
-    //           ['WBTC', 1000],
-    //         ],
-    //       ],
-    //       ['ETH', 'HOHO']
-    //     )
-    //   ).rejects.toRevert('revert token config not found');
-    // });
+      await expect(postPrices(timestamp, [[['HOHO', 91]]], ['HOHO'])).to.be.revertedWith('Token config not found');
 
-    // it('should revert on posting FIXED_USD prices', async () => {
-    //   await expect(postPrices(time() - 5, [[['USDT', 1]]], ['USDT'])).rejects.toRevert(
-    //     'revert only reporter prices get posted'
-    //   );
-    // });
+      await expect(
+        postPrices(
+          timestamp,
+          [
+            [
+              ['ETH', 91],
+              ['WBTC', 1000],
+            ],
+          ],
+          ['ETH', 'HOHO']
+        )
+      ).to.be.revertedWith('Token config not found');
+    });
 
-    // it('should revert on posting FIXED_ETH prices', async () => {
-    //   await expect(postPrices(time() - 5, [[['SAI', 1]]], ['SAI'])).rejects.toRevert(
-    //     'revert only reporter prices get posted'
-    //   );
-    // });
+    it('should revert on posting FIXED_USD prices', async () => {
+      await expect(postPrices(time() - 5, [[['USDT', 1]]], ['USDT'])).to.be.revertedWith(
+        'Only reporter prices get posted'
+      );
+    });
+
+    it('should revert on posting FIXED_ETH prices', async () => {
+      await expect(postPrices(time() - 5, [[['SAI', 1]]], ['SAI'])).to.be.revertedWith(
+        'Only reporter prices get posted'
+      );
+    });
   });
 
   // describe('getUnderlyingPrice', () => {
@@ -554,7 +533,7 @@ describe('UniswapAnchoredView', () => {
   //     ];
   //     await expect(
   //       deploy('UniswapAnchoredView', [priceData.address, reporter.address, anchorMantissa, 30, tokenConfigs])
-  //     ).rejects.toRevert('revert baseUnit must be greater than zero');
+  //     ).to.be.revertedWith('revert baseUnit must be greater than zero');
   //   });
 
   //   it('should fail if uniswap market is not defined', async () => {
@@ -600,7 +579,7 @@ describe('UniswapAnchoredView', () => {
   //     ];
   //     await expect(
   //       deploy('UniswapAnchoredView', [priceData.address, reporter.address, anchorMantissa, 30, tokenConfigs])
-  //     ).rejects.toRevert('revert reported prices must have an anchor');
+  //     ).to.be.revertedWith('revert reported prices must have an anchor');
   //   });
 
   //   it('should fail if non-reporter price utilizes an anchor', async () => {
@@ -625,7 +604,7 @@ describe('UniswapAnchoredView', () => {
   //     ];
   //     await expect(
   //       deploy('UniswapAnchoredView', [priceData.address, reporter.address, anchorMantissa, 30, tokenConfigs1])
-  //     ).rejects.toRevert('revert only reported prices utilize an anchor');
+  //     ).to.be.revertedWith('revert only reported prices utilize an anchor');
 
   //     const tokenConfigs2 = [
   //       {
@@ -641,7 +620,7 @@ describe('UniswapAnchoredView', () => {
   //     ];
   //     await expect(
   //       deploy('UniswapAnchoredView', [priceData.address, reporter.address, anchorMantissa, 30, tokenConfigs2])
-  //     ).rejects.toRevert('revert only reported prices utilize an anchor');
+  //     ).to.be.revertedWith('revert only reported prices utilize an anchor');
   //   });
 
   //   it('basic scenario, successfully initialize observations initial state', async () => {
@@ -696,7 +675,7 @@ describe('UniswapAnchoredView', () => {
   //     let encoded = web3.eth.abi.encodeParameters(['string', 'address'], ['stay still', rotationTarget]);
   //     const [signed] = sign(encoded, reporter.privateKey);
 
-  //     await expect(send(uniswapAnchoredView, 'invalidateReporter', [encoded, signed.signature])).rejects.toRevert(
+  //     await expect(send(uniswapAnchoredView, 'invalidateReporter', [encoded, signed.signature])).to.be.revertedWith(
   //       "revert invalid message must be 'rotate'"
   //     );
   //   });
@@ -707,7 +686,7 @@ describe('UniswapAnchoredView', () => {
   //     // sign rotation message with wrong key
   //     const [signed] = sign(encoded, '0x666ee777e72b8c042e05ef41d1db0f17f1fcb0e8150b37cfad6993e4373bdf10');
 
-  //     await expect(send(uniswapAnchoredView, 'invalidateReporter', [encoded, signed.signature])).rejects.toRevert(
+  //     await expect(send(uniswapAnchoredView, 'invalidateReporter', [encoded, signed.signature])).to.be.revertedWith(
   //       'revert invalidation message must come from the reporter'
   //     );
   //   });

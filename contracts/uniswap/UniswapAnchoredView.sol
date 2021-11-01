@@ -161,7 +161,7 @@ contract UniswapAnchoredView is UniswapConfig {
         bytes[] calldata signatures,
         string[] calldata symbols
     ) external {
-        require(messages.length == signatures.length, "messages and signatures must be 1:1");
+        require(messages.length == signatures.length, "Messages and signatures must be 1:1");
 
         // Save the prices
         for (uint256 i = 0; i < messages.length; i++) {
@@ -178,7 +178,7 @@ contract UniswapAnchoredView is UniswapConfig {
 
     function postPriceInternal(string memory symbol, uint256 ethPrice) internal {
         TokenConfig memory config = getTokenConfigBySymbol(symbol);
-        require(config.priceSource == PriceSource.REPORTER, "only reporter prices get posted");
+        require(config.priceSource == PriceSource.REPORTER, "Only reporter prices get posted");
 
         bytes32 symbolHash = keccak256(abi.encodePacked(symbol));
         uint256 reporterPrice = priceData.getPrice(reporter, symbol);
