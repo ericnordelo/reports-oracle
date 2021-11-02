@@ -117,7 +117,7 @@ contract UniswapAnchoredView is UniswapConfig {
     }
 
     /**
-     * @notice Get the official price for a symbol
+     * @notice get the official price for a symbol
      * @param symbol the symbol to fetch the price of
      * @return currentPrice Price denominated in USD, with 6 decimals
      */
@@ -137,7 +137,7 @@ contract UniswapAnchoredView is UniswapConfig {
     }
 
     /**
-     * @notice Get the underlying price of a cToken
+     * @notice get the underlying price of a cToken
      * @dev Implements the PriceOracle interface for Compound v2.
      * @param cToken the cToken address for price retrieval
      * @return Price denominated in USD, with 18 decimals, for the given cToken address
@@ -150,8 +150,8 @@ contract UniswapAnchoredView is UniswapConfig {
     }
 
     /**
-     * @notice Post open oracle reporter prices, and recalculate stored price by comparing to anchor
-     * @dev We let anyone pay to post anything, but only prices from configured reporter will be stored in the view.
+     * @notice post oracle reporter prices, and recalculate stored price by comparing to anchor
+     * @dev we let anyone pay to post anything, but only prices from configured reporter will be stored in the view.
      * @param messages the messages to post to the oracle
      * @param signatures the signatures for the corresponding messages
      * @param symbols the symbols to compare to anchor for authoritative reading
@@ -244,19 +244,20 @@ contract UniswapAnchoredView is UniswapConfig {
 
         uint256 timeElapsed = block.timestamp - oldTimestamp; // solhint-disable-line
 
-        // Calculate uniswap time-weighted average price
-        // Underflow is a property of the accumulators: https://uniswap.org/audit.html#orgc9b3190
+        // calculate uniswap time-weighted average price
+        // underflow is a property of the accumulators: https://uniswap.org/audit.html#orgc9b3190
         FixedPoint.uq112x112 memory priceAverage = FixedPoint.uq112x112(
             uint224((nowCumulativePrice - oldCumulativePrice) / timeElapsed)
         );
+
         uint256 rawUniswapPriceMantissa = priceAverage.decode112with18();
         uint256 unscaledPriceMantissa = mul(rawUniswapPriceMantissa, conversionFactor);
         uint256 anchorPrice;
 
-        // Adjust rawUniswapPrice according to the units of the non-ETH asset
-        // In the case of ETH, we would have to scale by 1e6 / USDC_UNITS, but since baseUnit2 is 1e6 (USDC), it cancels
+        // adjust rawUniswapPrice according to the units of the non-ETH asset
+        // in the case of ETH, we would have to scale by 1e6 / USDC_UNITS, but since baseUnit2 is 1e6 (USDC), it cancels
 
-        // In the case of non-ETH tokens
+        // in the case of non-ETH tokens
         // a. pokeWindowValues already handled uniswap reversed cases, so priceAverage will always be Token/ETH TWAP price.
         // b. conversionFactor = ETH price * 1e6
         // unscaledPriceMantissa = priceAverage(token/ETH TWAP price) * EXP_SCALE * conversionFactor
@@ -272,7 +273,7 @@ contract UniswapAnchoredView is UniswapConfig {
     }
 
     /**
-     * @dev Get time-weighted average prices for a token at the current timestamp.
+     * @dev get time-weighted average prices for a token at the current timestamp.
      *  Update new and old observations of lagging window if period elapsed.
      */
     function pokeWindowValues(TokenConfig memory config)

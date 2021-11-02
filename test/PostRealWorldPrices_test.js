@@ -2,16 +2,18 @@ const MockUniswapTokenPair = artifacts.require('MockUniswapTokenPair');
 const UniswapAnchoredView = artifacts.require('UniswapAnchoredView');
 const PriceOracleData = artifacts.require('PriceOracleData');
 
+const { expectEvent, time } = require('@openzeppelin/test-helpers');
+
 // @notice UniswapAnchoredView `postPrices` test
-// Based on data from Coinbase oracle https://api.pro.coinbase.com/oracle and Uniswap token pairs at July 2nd 2020.
+// based on data from Coinbase oracle https://api.pro.coinbase.com/oracle and Uniswap token pairs at July 2nd 2020.
 const BN = require('bignumber.js');
 const { sendRPC, address, uint, keccak256, numToHex } = require('./helpers');
 
-// Cut all digits after decimal point
+// cut all digits after decimal point
 BN.set({ DECIMAL_PLACES: 0, ROUNDING_MODE: 3 });
 
 async function setupTokenPairs() {
-  // Reversed market for ETH, read value of ETH in USDC
+  // reversed market for ETH, read value of ETH in USDC
   const usdc_eth_pair = await MockUniswapTokenPair.new(
     '1865335786147',
     '8202340665419053945756',
@@ -20,7 +22,7 @@ async function setupTokenPairs() {
     '5820053774558372823476814618189'
   );
 
-  // Initialize DAI pair with values from mainnet
+  // initialize DAI pair with values from mainnet
   const dai_eth_pair = await MockUniswapTokenPair.new(
     '3435618131150076101237553',
     '15407572689721099289685',
@@ -29,7 +31,7 @@ async function setupTokenPairs() {
     '5069668089169215245120760905619375569156736'
   );
 
-  // Initialize REP pair with values from mainnet
+  // initialize REP pair with values from mainnet
   const rep_eth_pair = await MockUniswapTokenPair.new(
     '40867690797665090689823',
     '3089126268851209725535',
@@ -38,8 +40,8 @@ async function setupTokenPairs() {
     '315226499991023307900665225550194785606382'
   );
 
-  // Initialize ZRX pair with values from mainnet
-  // Reversed market
+  // initialize ZRX pair with values from mainnet
+  // reversed market
   const eth_zrx_pair = await MockUniswapTokenPair.new(
     '259245497861929182740',
     '164221696097447914276729',
@@ -48,7 +50,7 @@ async function setupTokenPairs() {
     '30665287778536822167996154892216941694'
   );
 
-  // Initialize BTC pair with values from mainnet
+  // initialize BTC pair with values from mainnet
   const wbtc_eth_pair = await MockUniswapTokenPair.new(
     '4744946699',
     '1910114633221652017296',
@@ -269,284 +271,288 @@ describe('UniswapAnchoredView', () => {
     );
   });
 
-  // it("basic scenario, use real world data", async () => {
-  //   await sendRPC(web3, "evm_increaseTime", [31 * 60]);
+  it('basic scenario, use real world data', async () => {
+    await sendRPC(web3, 'evm_increaseTime', [31 * 60]);
 
-  //   await send(uniswapAnchoredView, "postPrices", [
-  //     messages,
-  //     signatures,
-  //     symbols,
-  //   ]);
+    await uniswapAnchoredView.postPrices(messages, signatures, symbols);
 
-  //   const btc_price = await call(uniswapAnchoredView, "price", ["BTC"]);
-  //   expect(btc_price).toBe("9100190000");
+    const btc_price = await uniswapAnchoredView.price('BTC');
+    expect(btc_price.toString()).to.be.equal('9100190000');
 
-  //   const eth_price = await call(uniswapAnchoredView, "price", ["ETH"]);
-  //   expect(eth_price).toBe("226815000");
+    const eth_price = await uniswapAnchoredView.price('ETH');
+    expect(eth_price.toString()).to.be.equal('226815000');
 
-  //   const dai_price = await call(uniswapAnchoredView, "price", ["DAI"]);
-  //   expect(dai_price).toBe("1016313");
+    const dai_price = await uniswapAnchoredView.price('DAI');
+    expect(dai_price.toString()).to.be.equal('1016313');
 
-  //   const rep_price = await call(uniswapAnchoredView, "price", ["REP"]);
-  //   expect(rep_price).toBe("17275000");
+    const rep_price = await uniswapAnchoredView.price('REP');
+    expect(rep_price.toString()).to.be.equal('17275000');
 
-  //   const zrx_price = await call(uniswapAnchoredView, "price", ["ZRX"]);
-  //   expect(zrx_price).toBe("356479");
+    const zrx_price = await uniswapAnchoredView.price('ZRX');
+    expect(zrx_price.toString()).to.be.equal('356479');
+  });
 
-  //   const bat_price = await call(uniswapAnchoredView, "price", ["BAT"]);
-  //   expect(bat_price).toBe("243858");
+  it('test price events - PriceUpdated, PriceGuarded', async () => {
+    await sendRPC(web3, 'evm_increaseTime', [31 * 60]);
 
-  //   const knc_price = await call(uniswapAnchoredView, "price", ["KNC"]);
-  //   expect(knc_price).toBe("1634700");
+    const postRes = await uniswapAnchoredView.postPrices(messages, signatures, symbols);
 
-  //   const link_price = await call(uniswapAnchoredView, "price", ["LINK"]);
-  //   expect(link_price).toBe("4792460");
-  // });
+    expectEvent.notEmitted(postRes, 'PriceGuarded');
+    expectEvent(postRes, 'PriceUpdated', {});
 
-  // it("test price events - PriceUpdated, PriceGuarded", async () => {
-  //   await sendRPC(web3, "evm_increaseTime", [31 * 60]);
+    const priceUpdatedEvents = postRes.logs.filter((log) => log.event == 'PriceUpdated');
 
-  //   const postRes = await send(uniswapAnchoredView, "postPrices", [
-  //     messages,
-  //     signatures,
-  //     symbols,
-  //   ]);
+    // check price updates
+    priceUpdatedEvents.forEach((updateEvent) => {
+      switch (updateEvent.args.price) {
+        case 'BTC':
+          expect(updateEvent.args.price).to.be.equal('9100190000');
+          break;
+        case 'ETH':
+          expect(updateEvent.args.price).to.be.equal('226815000');
+          break;
+        case 'DAI':
+          expect(updateEvent.args.price).to.be.equal('1016313');
+          break;
+        case 'ZRX':
+          expect(updateEvent.args.price).to.be.equal('356479');
+          break;
+        case 'REP':
+          expect(updateEvent.args.price).to.be.equal('17275000');
+          break;
+      }
+    });
+  });
 
-  //   const priceUpdatedEvents = postRes.events.PriceUpdated;
-  //   const priceGuardedEvents = postRes.events.PriceGuarded;
+  it('test anchor price events - AnchorPriceUpdated', async () => {
+    await sendRPC(web3, 'evm_increaseTime', [31 * 60]);
 
-  //   // All prices were updated
-  //   expect(priceGuardedEvents).toBe(undefined);
+    const observations = {};
+    await Promise.all(
+      Object.keys(pairs).map(async (key) => {
+        const newObservation = await uniswapAnchoredView.newObservations(keccak256(key));
+        observations[key] = { acc: newObservation.acc, timestamp: newObservation.timestamp };
+      })
+    );
 
-  //   // Check price updates
-  //   priceUpdatedEvents.forEach((updateEvent) => {
-  //     switch(updateEvent.returnValues.price) {
-  //       case "BTC":
-  //         expect(updateEvent.returnValues.price).toBe("9100190000");
-  //         break;
-  //       case "ETH":
-  //         expect(updateEvent.returnValues.price).toBe("226815000");
-  //         break;
-  //       case "DAI":
-  //         expect(updateEvent.returnValues.price).toBe("1016313");
-  //         break;
-  //       case "ZRX":
-  //         expect(updateEvent.returnValues.price).toBe("356479");
-  //         break;
-  //       case "REP":
-  //         expect(updateEvent.returnValues.price).toBe("17275000");
-  //         break;
-  //       case "BAT":
-  //         expect(updateEvent.returnValues.price).toBe("243858");
-  //         break;
-  //       case "KNC":
-  //         expect(updateEvent.returnValues.price).toBe("1634700");
-  //         break;
-  //       case "LINK":
-  //         expect(updateEvent.returnValues.price).toBe("4792460");
-  //     }
-  //   });
-  // });
+    const postRes = await uniswapAnchoredView.postPrices(messages, signatures, symbols);
 
-  // it("test anchor price events - AnchorPriceUpdated", async () => {
-  //   await sendRPC(web3, "evm_increaseTime", [31 * 60]);
+    const anchorEvents = postRes.logs.filter((log) => log.event == 'AnchorPriceUpdated');
 
-  //   const observations = {};
-  //   await Promise.all(Object.keys(pairs).map(async (key) => {
-  //     const newObservation = await call(uniswapAnchoredView, "newObservations", [pairs[key].address]);
-  //     observations[key] = {acc: newObservation.acc, timestamp: newObservation.timestamp};
-  //   }));
+    // check anchor prices
+    const block = await sendRPC(web3, 'eth_getBlockByNumber', [
+      web3.utils.numberToHex(anchorEvents[0].blockNumber),
+      false,
+    ]);
+    const blockTimestamp = web3.utils.hexToNumber(block.result.timestamp);
+    const cumulativePrice_eth = await getCumulativePrice(pairs.ETH, blockTimestamp, true);
 
-  //   const postRes = await send(uniswapAnchoredView, "postPrices", [
-  //     messages,
-  //     signatures,
-  //     symbols,
-  //   ]);
+    // recalculate anchor price in JS code and compare to the contract result
+    const ethPrice = calculateTWAP(
+      cumulativePrice_eth,
+      observations['ETH'].acc,
+      blockTimestamp,
+      observations['ETH'].timestamp
+    ).toFixed();
 
-  //   const anchorEvents = postRes.events.AnchorPriceUpdated;
+    await Promise.all(
+      anchorEvents.map(async (anchorEvent) => {
+        anchorEvent.args.anchorPrice = anchorEvent.args.anchorPrice.toString();
+        switch (anchorEvent.args.symbol) {
+          case 'ETH':
+            expect(anchorEvent.args.anchorPrice).to.be.equal('227415058');
+            expect(anchorEvent.args.anchorPrice).to.be.equal(ethPrice);
+            break;
 
-  //   // Check anchor prices
-  //   const block = await sendRPC(web3, "eth_getBlockByNumber", [ anchorEvents[0].blockNumber, false]);
-  //   const blockTimestamp = block.result.timestamp;
-  //   const cumulativePrice_eth = await getCumulativePrice(pairs.ETH, blockTimestamp, true);
-  //   // Recalculate anchor price in JS code and compare to the contract result
-  //   const ethPrice = calculateTWAP(cumulativePrice_eth, observations["ETH"].acc, blockTimestamp, observations["ETH"].timestamp).toFixed();
-  //   await Promise.all(anchorEvents.map(async (anchorEvent) => {
-  //     switch(anchorEvent.returnValues.uniswapMarket) {
-  //       case pairs.ETH.address:
-  //         expect(anchorEvent.returnValues.anchorPrice).toBe("227415058");
-  //         expect(anchorEvent.returnValues.anchorPrice).toBe(ethPrice);
-  //         break;
-  //       case pairs.DAI.address:
-  //         expect(anchorEvent.returnValues.anchorPrice).toBe("1019878");
+          case 'DAI':
+            expect(anchorEvent.args.anchorPrice).to.be.equal('1019878');
 
-  //         // Recalculate anchor price in JS code and compare to the contract result
-  //         const cumulativePrice_dai = await getCumulativePrice(pairs.DAI, blockTimestamp);
-  //         const daiTWAP = calculateTWAP(cumulativePrice_dai, observations["DAI"].acc, blockTimestamp, observations["DAI"].timestamp);
-  //         const daiPrice = daiTWAP.multipliedBy(ethPrice).dividedBy(1e18).toFixed()
-  //         expect(daiPrice).toBe(anchorEvent.returnValues.anchorPrice);
-  //         break;
-  //       case pairs.REP.address:
-  //         expect(anchorEvent.returnValues.anchorPrice).toBe("17189956");
+            // recalculate anchor price in JS code and compare to the contract result
+            const cumulativePrice_dai = await getCumulativePrice(pairs.DAI, blockTimestamp);
+            const daiTWAP = calculateTWAP(
+              cumulativePrice_dai,
+              observations['DAI'].acc,
+              blockTimestamp,
+              observations['DAI'].timestamp
+            );
+            const daiPrice = daiTWAP.multipliedBy(ethPrice).dividedBy(1e18).toFixed();
+            expect(daiPrice).to.be.equal(anchorEvent.args.anchorPrice);
+            break;
 
-  //         // Recalculate anchor price in JS code and compare to the contract result
-  //         const cumulativePrice_rep = await getCumulativePrice(pairs.REP, blockTimestamp);
-  //         const repTWAP = calculateTWAP(cumulativePrice_rep, observations["REP"].acc, blockTimestamp, observations["REP"].timestamp);
-  //         const repPrice = repTWAP.multipliedBy(ethPrice).dividedBy(1e18).toFixed()
-  //         expect(repPrice).toBe(anchorEvent.returnValues.anchorPrice);
-  //         break;
-  //       case pairs.BAT.address:
-  //         expect(anchorEvent.returnValues.anchorPrice).toBe("242933");
+          case 'REP':
+            expect(anchorEvent.args.anchorPrice).to.be.equal('17189956');
 
-  //         // Recalculate anchor price in JS code and compare to the contract result
-  //         const cumulativePrice_bat = await getCumulativePrice(pairs.BAT, blockTimestamp);
-  //         const batTWAP = calculateTWAP(cumulativePrice_bat, observations["BAT"].acc, blockTimestamp, observations["BAT"].timestamp);
-  //         const batPrice = batTWAP.multipliedBy(ethPrice).dividedBy(1e18).toFixed()
-  //         expect(batPrice).toBe(anchorEvent.returnValues.anchorPrice);
-  //         break;
-  //       case pairs.ZRX.address:
-  //         expect(anchorEvent.returnValues.anchorPrice).toBe("359004");
+            // recalculate anchor price in JS code and compare to the contract result
+            const cumulativePrice_rep = await getCumulativePrice(pairs.REP, blockTimestamp);
+            const repTWAP = calculateTWAP(
+              cumulativePrice_rep,
+              observations['REP'].acc,
+              blockTimestamp,
+              observations['REP'].timestamp
+            );
+            const repPrice = repTWAP.multipliedBy(ethPrice).dividedBy(1e18).toFixed();
+            expect(repPrice).to.be.equal(anchorEvent.args.anchorPrice);
+            break;
 
-  //         // Recalculate anchor price in JS code and compare to the contract result
-  //         cumulativePrice_zrx = await getCumulativePrice(pairs.ZRX, blockTimestamp, true);
-  //         const zrxTWAP = calculateTWAP(cumulativePrice_zrx, observations["ZRX"].acc, blockTimestamp, observations["ZRX"].timestamp);
-  //         const zrxPrice = zrxTWAP.multipliedBy(ethPrice).dividedBy(1e18).toFixed()
-  //         expect(zrxPrice).toBe(anchorEvent.returnValues.anchorPrice);
-  //         break;
-  //       case pairs.BTC.address:
-  //         expect(anchorEvent.returnValues.anchorPrice).toBe("9154767327");
+          case 'ZRX':
+            expect(anchorEvent.args.anchorPrice).to.be.equal('359004');
 
-  //         // Recalculate anchor price in JS code and compare to the contract result
-  //         const cumulativePrice_btc = await getCumulativePrice(pairs.BTC, blockTimestamp);
-  //         const btcTWAP = calculateTWAP(cumulativePrice_btc, observations["BTC"].acc, blockTimestamp, observations["BTC"].timestamp);
-  //         const btcPrice = btcTWAP.multipliedBy(ethPrice).dividedBy(1e18).dividedBy(1e10).toFixed()
-  //         expect(btcPrice).toBe(anchorEvent.returnValues.anchorPrice);
-  //         break;
-  //       case pairs.KNC.address:
-  //         expect(anchorEvent.returnValues.anchorPrice).toBe("1661588");
+            // recalculate anchor price in JS code and compare to the contract result
+            cumulativePrice_zrx = await getCumulativePrice(pairs.ZRX, blockTimestamp, true);
+            const zrxTWAP = calculateTWAP(
+              cumulativePrice_zrx,
+              observations['ZRX'].acc,
+              blockTimestamp,
+              observations['ZRX'].timestamp
+            );
+            const zrxPrice = zrxTWAP.multipliedBy(ethPrice).dividedBy(1e18).toFixed();
+            expect(zrxPrice).to.be.equal(anchorEvent.args.anchorPrice);
+            break;
 
-  //         // Recalculate anchor price in JS code and compare to the contract result
-  //         cumulativePrice_knc = await getCumulativePrice(pairs.KNC, blockTimestamp, true);
-  //         const kncTWAP = calculateTWAP(cumulativePrice_knc, observations["KNC"].acc, blockTimestamp, observations["KNC"].timestamp);
-  //         const kncPrice = kncTWAP.multipliedBy(ethPrice).dividedBy(1e18).toFixed()
-  //         expect(kncPrice).toBe(anchorEvent.returnValues.anchorPrice);
-  //         break;
-  //       case pairs.LINK.address:
-  //         expect(anchorEvent.returnValues.anchorPrice).toBe("4820505");
+          case 'BTC':
+            expect(anchorEvent.args.anchorPrice).to.be.equal('9154767327');
 
-  //         // Recalculate anchor price in JS code and compare to the contract result
-  //         const cumulativePrice_link = await getCumulativePrice(pairs.LINK, blockTimestamp);
-  //         const linkTWAP = calculateTWAP(cumulativePrice_link, observations["LINK"].acc, blockTimestamp, observations["LINK"].timestamp);
-  //         const linkPrice = linkTWAP.multipliedBy(ethPrice).dividedBy(1e18).toFixed()
-  //         expect(linkPrice).toBe(anchorEvent.returnValues.anchorPrice);
-  //     }
-  //   }));
-  // });
+            // recalculate anchor price in JS code and compare to the contract result
+            const cumulativePrice_btc = await getCumulativePrice(pairs.BTC, blockTimestamp);
+            const btcTWAP = calculateTWAP(
+              cumulativePrice_btc,
+              observations['BTC'].acc,
+              blockTimestamp,
+              observations['BTC'].timestamp
+            );
+            const btcPrice = btcTWAP.multipliedBy(ethPrice).dividedBy(1e18).dividedBy(1e10).toFixed();
+            expect(btcPrice).to.be.equal(anchorEvent.args.anchorPrice);
+            break;
+        }
+      })
+    );
+  });
 
-  // it("test uniswap window events", async () => {
-  //   await sendRPC(web3, "evm_increaseTime", [31 * 60]);
+  it('test uniswap window events', async () => {
+    await sendRPC(web3, 'evm_increaseTime', [31 * 60]);
 
-  //   const messages2 = [
-  //     "0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005effbf7800000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000021cd92f100000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000034254430000000000000000000000000000000000000000000000000000000000",
-  //     "0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005effbf7800000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000d6e56d80000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000034554480000000000000000000000000000000000000000000000000000000000",
-  //     "0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005effbf7800000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000f7f660000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000034441490000000000000000000000000000000000000000000000000000000000",
-  //     "0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005effbf7800000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000116ee400000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000035245500000000000000000000000000000000000000000000000000000000000",
-  //     "0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005effbf7800000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000005cd4e0000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000035a52580000000000000000000000000000000000000000000000000000000000",
-  //     "0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005effbf0000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000003aff50000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000034241540000000000000000000000000000000000000000000000000000000000",
-  //     "0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005effbf7800000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000001c6a6a0000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000034b4e430000000000000000000000000000000000000000000000000000000000",
-  //     "0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005effbf7800000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000004895e00000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000044c494e4b00000000000000000000000000000000000000000000000000000000",
-  //   ];
+    const messages2 = [
+      '0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005effbf7800000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000021cd92f100000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000034254430000000000000000000000000000000000000000000000000000000000',
+      '0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005effbf7800000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000d6e56d80000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000034554480000000000000000000000000000000000000000000000000000000000',
+      '0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005effbf7800000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000f7f660000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000034441490000000000000000000000000000000000000000000000000000000000',
+      '0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005effbf7800000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000116ee400000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000035245500000000000000000000000000000000000000000000000000000000000',
+      '0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005effbf7800000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000005cd4e0000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000035a52580000000000000000000000000000000000000000000000000000000000',
+      '0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005effbf0000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000003aff50000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000034241540000000000000000000000000000000000000000000000000000000000',
+      '0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005effbf7800000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000001c6a6a0000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000034b4e430000000000000000000000000000000000000000000000000000000000',
+      '0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005effbf7800000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000004895e00000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000044c494e4b00000000000000000000000000000000000000000000000000000000',
+    ];
 
-  //   const signatures2 = [
-  //     "0xbd6866cafc46a9f55ad102830a57e807d797ed54d2cf1a689e527b054f1103d860a712d1e6e7f3e1f0e57a263f8a195c8484afdade8e23984d23d8c023bc9dd8000000000000000000000000000000000000000000000000000000000000001c",
-  //     "0xadbca52dc0ecc378d65b540f69e42f6d4879907b8713371758e8dffa02ba4e8eae2a10459600ad3784fe0aac34c0adda164a649cc8b5e713524d349bdddf4b64000000000000000000000000000000000000000000000000000000000000001b",
-  //     "0xc7b7b4b9411a06f623ed6549c3f314b6bf1d39af7d42a3131fbe1e99ddcb4bb0f494788fd01a58a33e567b52345d8889e0ae5eeffeba91e57b718ae7b6d77485000000000000000000000000000000000000000000000000000000000000001c",
-  //     "0x94dfe8cab9eb31f68e926863da610a7764f7153d5d599dc2382cbb0e1343452e5fa0f9da9f812470b54ce806e596688cc2b9c3c25c300060fdb06bca92a6e668000000000000000000000000000000000000000000000000000000000000001b",
-  //     "0x0c4c504ff54a157548c81d96369bd7f3245e7a4fe66cd142cdc9d54a5361eef16d19b925af77c85e49c8389410afa6864c210ed6440939fc4190dec0d49b4ad7000000000000000000000000000000000000000000000000000000000000001c",
-  //     "0x6eea7c84b145877f1c133062a3bc718d2c6ea5806e16ec179b5336ddd96bd47c4cf64cd8475cec87237d5a3715d99409d18d05375ad1fb1996b47d356e59b8ff000000000000000000000000000000000000000000000000000000000000001b",
-  //     "0xafa764b8e63866b81853c8d74e380a8cc7cd14cf2aed22df306f6c4931801a1986ea34f54d4de25f4f3f6a4e968abf42371a6ad3e72b90b2027dc63212fededb000000000000000000000000000000000000000000000000000000000000001b",
-  //     "0x039f30fb49b2f2badad1e3c5df00f2c5c2124c2a1bd06da56467aea45ebf89a027525cc7bfa776452171cb5865e74ef0c04ea6ef18d6ca2e556a0686af658803000000000000000000000000000000000000000000000000000000000000001b",
-  //   ];
+    const signatures2 = [
+      '0xbd6866cafc46a9f55ad102830a57e807d797ed54d2cf1a689e527b054f1103d860a712d1e6e7f3e1f0e57a263f8a195c8484afdade8e23984d23d8c023bc9dd8000000000000000000000000000000000000000000000000000000000000001c',
+      '0xadbca52dc0ecc378d65b540f69e42f6d4879907b8713371758e8dffa02ba4e8eae2a10459600ad3784fe0aac34c0adda164a649cc8b5e713524d349bdddf4b64000000000000000000000000000000000000000000000000000000000000001b',
+      '0xc7b7b4b9411a06f623ed6549c3f314b6bf1d39af7d42a3131fbe1e99ddcb4bb0f494788fd01a58a33e567b52345d8889e0ae5eeffeba91e57b718ae7b6d77485000000000000000000000000000000000000000000000000000000000000001c',
+      '0x94dfe8cab9eb31f68e926863da610a7764f7153d5d599dc2382cbb0e1343452e5fa0f9da9f812470b54ce806e596688cc2b9c3c25c300060fdb06bca92a6e668000000000000000000000000000000000000000000000000000000000000001b',
+      '0x0c4c504ff54a157548c81d96369bd7f3245e7a4fe66cd142cdc9d54a5361eef16d19b925af77c85e49c8389410afa6864c210ed6440939fc4190dec0d49b4ad7000000000000000000000000000000000000000000000000000000000000001c',
+      '0x6eea7c84b145877f1c133062a3bc718d2c6ea5806e16ec179b5336ddd96bd47c4cf64cd8475cec87237d5a3715d99409d18d05375ad1fb1996b47d356e59b8ff000000000000000000000000000000000000000000000000000000000000001b',
+      '0xafa764b8e63866b81853c8d74e380a8cc7cd14cf2aed22df306f6c4931801a1986ea34f54d4de25f4f3f6a4e968abf42371a6ad3e72b90b2027dc63212fededb000000000000000000000000000000000000000000000000000000000000001b',
+      '0x039f30fb49b2f2badad1e3c5df00f2c5c2124c2a1bd06da56467aea45ebf89a027525cc7bfa776452171cb5865e74ef0c04ea6ef18d6ca2e556a0686af658803000000000000000000000000000000000000000000000000000000000000001b',
+    ];
 
-  //   const postRes1 = await send(uniswapAnchoredView, "postPrices", [
-  //     messages,
-  //     signatures,
-  //     symbols,
-  //   ]);
-  //   const uniswapWindowEvents1 = postRes1.events.UniswapWindowUpdated;
-  //   const tolSeconds = 30;
+    const postRes1 = await uniswapAnchoredView.postPrices(messages, signatures, symbols);
+    const uniswapWindowEvents1 = postRes1.logs.filter((log) => log.event == 'UniswapWindowUpdated');
+    const tolSeconds = 30;
 
-  //   uniswapWindowEvents1.forEach((windowUpdate) => {
-  //     const elapsedTime =
-  //           windowUpdate.returnValues.newTimestamp -
-  //           windowUpdate.returnValues.oldTimestamp;
-  //     // but time difference should be around 31 minutes + 0/1 second
-  //     expect(elapsedTime).toBeWithinRange(31 * 60, 31 * 60 + tolSeconds);
-  //   });
+    uniswapWindowEvents1.forEach((windowUpdate) => {
+      const elapsedTime = windowUpdate.args.newTimestamp - windowUpdate.args.oldTimestamp;
+      // but time difference should be around 31 minutes + 0/1 second
+      expect(elapsedTime).to.be.within(31 * 60, 31 * 60 + tolSeconds);
+    });
 
-  //   await sendRPC(web3, "evm_increaseTime", [31 * 60]);
-  //   const postRes2 = await send(uniswapAnchoredView, "postPrices", [
-  //     messages2,
-  //     signatures2,
-  //     symbols,
-  //   ]);
-  //   const uniswapWindowEvents2 = postRes2.events.UniswapWindowUpdated;
+    await sendRPC(web3, 'evm_increaseTime', [31 * 60]);
+    const postRes2 = await uniswapAnchoredView.postPrices(messages2, signatures2, symbols);
+    const uniswapWindowEvents2 = postRes2.logs.filter((log) => log.event == 'UniswapWindowUpdated');
 
-  //   uniswapWindowEvents2.forEach((windowUpdate) => {
-  //     const elapsedTime =
-  //           windowUpdate.returnValues.newTimestamp -
-  //           windowUpdate.returnValues.oldTimestamp;
-  //     // Give an extra 30 seconds safety delay, but time difference should be around 31 minutes + 0/1 second
-  //     expect(elapsedTime).toBeWithinRange(31 * 60, 31 * 60 + tolSeconds);
-  //   });
-  // });
+    uniswapWindowEvents2.forEach((windowUpdate) => {
+      const elapsedTime = windowUpdate.args.newTimestamp - windowUpdate.args.oldTimestamp;
+      // Give an extra 30 seconds safety delay, but time difference should be around 31 minutes + 0/1 second
+      expect(elapsedTime).to.be.within(31 * 60, 31 * 60 + tolSeconds);
+    });
+  });
 
-  // it("test ETH pair while token reserves change", async() => {
-  //   // Emulate timeElapsed for ETH token pair, so that timestamps are set up correctly
-  //   // 1594232101 - 1593755855 = 476246
-  //   await sendRPC(web3, "evm_increaseTime", [476246]);
+  it('test ETH pair while token reserves change', async () => {
+    // emulate timeElapsed for ETH token pair, so that timestamps are set up correctly
+    // 1594232101 - 1593755855 = 476246
+    await sendRPC(web3, 'evm_increaseTime', [476246]);
 
-  //   // Update reserves, last block timestamp and cumulative prices for uniswap token pair
-  //   await send(pairs.ETH, "update", ["2699846518724", "10900804290754780075806", "1594232101", "130440674219479413955332918569393260852443923640848", "6394369143386285784459187027043"]);
-  //   const messages1 = ["0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005f060cac00000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000eb20df00000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000034554480000000000000000000000000000000000000000000000000000000000"];
-  //   const signatures1 = ["0x3b5dd2e97c072df44a576f1599a1a7beecef194596c0924c6f696f05c46e7494637041f819e7c89c897327f5932dddc3e4c811793bf5378bcd2289e3c2bd6210000000000000000000000000000000000000000000000000000000000000001b"];
-  //   const symbols1 = ["ETH"];
-  //   const postRes1 = await send(uniswapAnchoredView, "postPrices", [
-  //     messages1,
-  //     signatures1,
-  //     symbols1,
-  //   ]);
-  //   const oldObservation1 = await call(uniswapAnchoredView, "oldObservations", [keccak256('ETH')]);
-  //   const anchorEvent1 = postRes1.events.AnchorPriceUpdated;
-  //   const block1 = await sendRPC(web3, "eth_getBlockByNumber", [anchorEvent1.blockNumber, false]);
-  //   const blockTimestamp1 = block1.result.timestamp;
+    // update reserves, last block timestamp and cumulative prices for uniswap token pair
+    await pairs.ETH.update(
+      '2699846518724',
+      '10900804290754780075806',
+      '1594232101',
+      '130440674219479413955332918569393260852443923640848',
+      '6394369143386285784459187027043'
+    );
+    const messages1 = [
+      '0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005f060cac00000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000eb20df00000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000034554480000000000000000000000000000000000000000000000000000000000',
+    ];
+    const signatures1 = [
+      '0x3b5dd2e97c072df44a576f1599a1a7beecef194596c0924c6f696f05c46e7494637041f819e7c89c897327f5932dddc3e4c811793bf5378bcd2289e3c2bd6210000000000000000000000000000000000000000000000000000000000000001b',
+    ];
+    const symbols1 = ['ETH'];
+    const postRes1 = await uniswapAnchoredView.postPrices(messages1, signatures1, symbols1);
+    const oldObservation1 = await uniswapAnchoredView.oldObservations(keccak256('ETH'));
 
-  //   const cumulativePrice_eth1 = await getCumulativePrice(pairs.ETH, blockTimestamp1, true);
-  //   const ethPrice1 = calculateTWAP(cumulativePrice_eth1, oldObservation1.acc, blockTimestamp1, oldObservation1.timestamp).toFixed();
-  //   expect(anchorEvent1.returnValues.symbol).toBe("ETH");
-  //   expect(anchorEvent1.returnValues.anchorPrice).toBe(ethPrice1);
+    const anchorEvent1 = postRes1.logs.filter((log) => log.event == 'AnchorPriceUpdated');
 
-  //   // Emulate timeElapsed for ETH token pair, so that timestamps are set up correctly
-  //   // 1594232585 - 1594232101 = 484
-  //   await sendRPC(web3, "evm_increaseTime", [484]);
-  //   // Update reserves, last block timestamp and cumulative prices for uniswap token pair
-  //   await send(pairs.ETH, "update", ["2699481954534", "10928542275748114013210", "1594232585", "130450824938813990811384244472088515000814627335952", "6394991319166063175850559023838"]);
-  //   const messages2 = ["0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005f060e8c00000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000eb2aa300000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000034554480000000000000000000000000000000000000000000000000000000000"];
-  //   const signatures2 = ["0xa9f78f3b7b3f35b124b186fc30a49418cde2baf40b01f7e710239a5e1c4c68bc0e1ae1abd93d3a79c20d4a742983fffd63ab5b239d36d77051ee265e36819920000000000000000000000000000000000000000000000000000000000000001b"];
-  //   const symbols2 = ["ETH"];
-  //   const postRes2 = await send(uniswapAnchoredView, "postPrices", [
-  //     messages2,
-  //     signatures2,
-  //     symbols2,
-  //   ]);
-  //   const oldObservation2 = await call(uniswapAnchoredView, "oldObservations", [keccak256('ETH')]);
-  //   const anchorEvent2 = postRes2.events.AnchorPriceUpdated;
-  //   const block2 = await sendRPC(web3, "eth_getBlockByNumber", [anchorEvent2.blockNumber, false]);
-  //   const blockTimestamp2 = block2.result.timestamp;
-  //   const cumulativePrice_eth2 = await getCumulativePrice(pairs.ETH, blockTimestamp2, true);
-  //   const ethPrice2 = calculateTWAP(cumulativePrice_eth2, oldObservation2.acc, blockTimestamp2, oldObservation2.timestamp).toFixed();
+    const block1 = await sendRPC(web3, 'eth_getBlockByNumber', [
+      web3.utils.numberToHex(anchorEvent1[0].blockNumber),
+      false,
+    ]);
+    const blockTimestamp1 = block1.result.timestamp;
 
-  //   expect(anchorEvent2.returnValues.symbol).toBe("ETH");
-  //   expect(anchorEvent2.returnValues.anchorPrice).toBe(ethPrice2);
-  // });
+    const cumulativePrice_eth1 = await getCumulativePrice(pairs.ETH, blockTimestamp1, true);
+    const ethPrice1 = calculateTWAP(
+      cumulativePrice_eth1,
+      oldObservation1.acc,
+      blockTimestamp1,
+      oldObservation1.timestamp
+    ).toFixed();
+
+    expect(anchorEvent1[0].args.symbol).to.be.equal('ETH');
+    expect(anchorEvent1[0].args.anchorPrice.toString()).to.be.equal(ethPrice1);
+
+    // emulate timeElapsed for ETH token pair, so that timestamps are set up correctly
+    // 1594232585 - 1594232101 = 484
+    await sendRPC(web3, 'evm_increaseTime', [484]);
+    // update reserves, last block timestamp and cumulative prices for uniswap token pair
+    await pairs.ETH.update(
+      '2699481954534',
+      '10928542275748114013210',
+      '1594232585',
+      '130450824938813990811384244472088515000814627335952',
+      '6394991319166063175850559023838'
+    );
+    const messages2 = [
+      '0x0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000005f060e8c00000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000eb2aa300000000000000000000000000000000000000000000000000000000000000006707269636573000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000034554480000000000000000000000000000000000000000000000000000000000',
+    ];
+    const signatures2 = [
+      '0xa9f78f3b7b3f35b124b186fc30a49418cde2baf40b01f7e710239a5e1c4c68bc0e1ae1abd93d3a79c20d4a742983fffd63ab5b239d36d77051ee265e36819920000000000000000000000000000000000000000000000000000000000000001b',
+    ];
+    const symbols2 = ['ETH'];
+    const postRes2 = await uniswapAnchoredView.postPrices(messages2, signatures2, symbols2);
+    const oldObservation2 = await uniswapAnchoredView.oldObservations(keccak256('ETH'));
+
+    const anchorEvent2 = postRes2.logs.filter((log) => log.event == 'AnchorPriceUpdated');
+    const block2 = await sendRPC(web3, 'eth_getBlockByNumber', [
+      web3.utils.numberToHex(anchorEvent2[0].blockNumber),
+      false,
+    ]);
+
+    const blockTimestamp2 = block2.result.timestamp;
+    const cumulativePrice_eth2 = await getCumulativePrice(pairs.ETH, blockTimestamp2, true);
+    const ethPrice2 = calculateTWAP(
+      cumulativePrice_eth2,
+      oldObservation2.acc,
+      blockTimestamp2,
+      oldObservation2.timestamp
+    ).toFixed();
+
+    expect(anchorEvent2[0].args.symbol).to.be.equal('ETH');
+    expect(anchorEvent2[0].args.anchorPrice.toString()).to.be.equal(ethPrice2);
+  });
 });
