@@ -35,7 +35,7 @@ function numToBigNum(num) {
   return web3.utils.toBN(num);
 }
 
-function time() {
+function now() {
   return Math.floor(new Date() / 1000);
 }
 
@@ -126,7 +126,7 @@ module.exports = {
   sendRPC,
   address,
   bytes,
-  time,
+  now,
   numToBigNum,
   numToHex,
   uint256,

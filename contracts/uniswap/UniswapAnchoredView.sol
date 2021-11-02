@@ -96,7 +96,7 @@ contract UniswapAnchoredView is UniswapConfig {
             require(config.baseUnit > 0, "baseUnit must be greater than zero");
             address uniswapMarket = config.uniswapMarket;
             if (config.priceSource == PriceSource.REPORTER) {
-                require(uniswapMarket != address(0), "reported prices must have an anchor");
+                require(uniswapMarket != address(0), "Reported prices must have an anchor");
                 bytes32 symbolHash = config.symbolHash;
                 uint256 cumulativePrice = currentCumulativePrice(config);
                 oldObservations[symbolHash].timestamp = block.timestamp; // solhint-disable-line
@@ -111,7 +111,7 @@ contract UniswapAnchoredView is UniswapConfig {
                     cumulativePrice
                 );
             } else {
-                require(uniswapMarket == address(0), "only reported prices utilize an anchor");
+                require(uniswapMarket == address(0), "Only reported prices utilize an anchor");
             }
         }
     }
@@ -242,8 +242,6 @@ contract UniswapAnchoredView is UniswapConfig {
             config
         );
 
-        // This should be impossible, but better safe than sorry
-        require(block.timestamp > oldTimestamp, "now must come after before"); // solhint-disable-line
         uint256 timeElapsed = block.timestamp - oldTimestamp; // solhint-disable-line
 
         // Calculate uniswap time-weighted average price
@@ -320,9 +318,9 @@ contract UniswapAnchoredView is UniswapConfig {
         (string memory decodedMessage, ) = abi.decode(message, (string, address));
         require(
             keccak256(abi.encodePacked(decodedMessage)) == ROTATE_HASH,
-            "invalid message must be 'rotate'"
+            "Invalid message must be 'rotate'"
         );
-        require(source(message, signature) == reporter, "invalidation message must come from the reporter");
+        require(source(message, signature) == reporter, "Invalidation message must come from the reporter");
         reporterInvalidated = true;
         emit ReporterInvalidated(reporter);
     }
