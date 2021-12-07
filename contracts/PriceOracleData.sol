@@ -31,17 +31,17 @@ contract PriceOracleData {
      */
     function put(bytes calldata message_, bytes calldata signature_) external returns (string memory key) {
         (address source, uint64 timestamp, string memory key_, uint64 value) = message_.decode(signature_);
-        return putInternal(source, timestamp, key_, value);
+        return _putInternal(source, timestamp, key_, value);
     }
 
-    function putInternal(
+    function _putInternal(
         address source_,
         uint64 timestamp_,
         string memory key_,
         uint64 value_
     ) internal returns (string memory) {
         // only update if newer than stored, according to source
-        Report storage prior = data[source_][key_];
+        Report memory prior = data[source_][key_];
 
         if (
             // solhint-disable-next-line not-rely-on-time

@@ -279,17 +279,17 @@ describe('UniswapAnchoredView', () => {
     const btc_price = await uniswapAnchoredView.price('BTC');
     expect(btc_price.toString()).to.be.equal('9100190000');
 
-    const eth_price = await uniswapAnchoredView.price('ETH');
-    expect(eth_price.toString()).to.be.equal('226815000');
+    // const eth_price = await uniswapAnchoredView.price('ETH');
+    // expect(eth_price.toString()).to.be.equal('226815000');
 
-    const dai_price = await uniswapAnchoredView.price('DAI');
-    expect(dai_price.toString()).to.be.equal('1016313');
+    // const dai_price = await uniswapAnchoredView.price('DAI');
+    // expect(dai_price.toString()).to.be.equal('1016313');
 
-    const rep_price = await uniswapAnchoredView.price('REP');
-    expect(rep_price.toString()).to.be.equal('17275000');
+    // const rep_price = await uniswapAnchoredView.price('REP');
+    // expect(rep_price.toString()).to.be.equal('17275000');
 
-    const zrx_price = await uniswapAnchoredView.price('ZRX');
-    expect(zrx_price.toString()).to.be.equal('356479');
+    // const zrx_price = await uniswapAnchoredView.price('ZRX');
+    // expect(zrx_price.toString()).to.be.equal('356479');
   });
 
   it('test price events - PriceUpdated, PriceGuarded', async () => {

@@ -123,7 +123,7 @@ contract UniswapAnchoredView is UniswapConfig {
      */
     function price(string memory symbol) external view returns (uint256 currentPrice) {
         TokenConfig memory config = getTokenConfigBySymbol(symbol);
-        return priceInternal(config);
+        return _priceInternal(config);
     }
 
     /**
@@ -133,10 +133,10 @@ contract UniswapAnchoredView is UniswapConfig {
      */
     function price(address token) external view returns (uint256 currentPrice) {
         TokenConfig memory config = getTokenConfigByUnderlying(token);
-        return priceInternal(config);
+        return _priceInternal(config);
     }
 
-    function priceInternal(TokenConfig memory config) internal view returns (uint256 currentPrice) {
+    function _priceInternal(TokenConfig memory config) internal view returns (uint256 currentPrice) {
         if (config.priceSource == PriceSource.REPORTER) return prices[config.symbolHash];
         if (config.priceSource == PriceSource.FIXED_USD) return config.fixedPrice;
         if (config.priceSource == PriceSource.FIXED_ETH) {
@@ -156,7 +156,7 @@ contract UniswapAnchoredView is UniswapConfig {
         TokenConfig memory config = getTokenConfigByCToken(cToken);
         // Comptroller needs prices in the format: ${raw price} * 1e(36 - baseUnit)
         // Since the prices in this view have 6 decimals, we must scale them by 1e(36 - 6 - baseUnit)
-        return mul(1e30, priceInternal(config)) / config.baseUnit;
+        return mul(1e30, _priceInternal(config)) / config.baseUnit;
     }
 
     /**
@@ -173,20 +173,20 @@ contract UniswapAnchoredView is UniswapConfig {
     ) external {
         require(messages.length == signatures.length, "Messages and signatures must be 1:1");
 
-        // Save the prices
+        // save the prices
         for (uint256 i = 0; i < messages.length; i++) {
             priceData.put(messages[i], signatures[i]);
         }
 
         uint256 ethPrice = fetchEthPrice();
 
-        // Try to update the view storage
+        // try to update the view storage
         for (uint256 i = 0; i < symbols.length; i++) {
-            postPriceInternal(symbols[i], ethPrice);
+            _postPriceInternal(symbols[i], ethPrice);
         }
     }
 
-    function postPriceInternal(string memory symbol, uint256 ethPrice) internal {
+    function _postPriceInternal(string memory symbol, uint256 ethPrice) internal {
         TokenConfig memory config = getTokenConfigBySymbol(symbol);
         require(config.priceSource == PriceSource.REPORTER, "Only reporter prices get posted");
 
@@ -219,7 +219,7 @@ contract UniswapAnchoredView is UniswapConfig {
     }
 
     /**
-     * @dev Fetches the current token/eth price accumulator from uniswap.
+     * @dev fetches the current token/eth price accumulator from uniswap.
      */
     function currentCumulativePrice(TokenConfig memory config) internal view returns (uint256) {
         (uint256 cumulativePrice0, uint256 cumulativePrice1, ) = UniswapV2OracleLibrary
@@ -232,15 +232,15 @@ contract UniswapAnchoredView is UniswapConfig {
     }
 
     /**
-     * @dev Fetches the current eth/usd price from uniswap, with 6 decimals of precision.
-     *  Conversion factor is 1e18 for eth/usdc market, since we decode uniswap price statically with 18 decimals.
+     * @dev fetches the current eth/usd price from uniswap, with 6 decimals of precision.
+     *      Conversion factor is 1e18 for eth/usdc market, since we decode uniswap price statically with 18 decimals.
      */
     function fetchEthPrice() internal returns (uint256) {
         return fetchAnchorPrice("ETH", getTokenConfigBySymbolHash(ETH_HASH), ETH_BASE_UNIT);
     }
 
     /**
-     * @dev Fetches the current token/usd price from uniswap, with 6 decimals of precision.
+     * @dev fetches the current token/usd price from uniswap, with 6 decimals of precision.
      * @param conversionFactor 1e18 if seeking the ETH price, and a 6 decimal ETH-USDC price in the case of other assets
      */
     function fetchAnchorPrice(
@@ -255,10 +255,14 @@ contract UniswapAnchoredView is UniswapConfig {
         uint256 timeElapsed = block.timestamp - oldTimestamp; // solhint-disable-line
 
         // calculate uniswap time-weighted average price
+        FixedPoint.uq112x112 memory priceAverage;
+
         // underflow is a property of the accumulators: https://uniswap.org/audit.html#orgc9b3190
-        FixedPoint.uq112x112 memory priceAverage = FixedPoint.uq112x112(
-            uint224((nowCumulativePrice - oldCumulativePrice) / timeElapsed)
-        );
+        unchecked {
+            priceAverage = FixedPoint.uq112x112(
+                uint224((nowCumulativePrice - oldCumulativePrice) / timeElapsed)
+            );
+        }
 
         uint256 rawUniswapPriceMantissa = priceAverage.decode112with18();
         uint256 unscaledPriceMantissa = mul(rawUniswapPriceMantissa, conversionFactor);
@@ -284,7 +288,7 @@ contract UniswapAnchoredView is UniswapConfig {
 
     /**
      * @dev get time-weighted average prices for a token at the current timestamp.
-     *  Update new and old observations of lagging window if period elapsed.
+     *      Update new and old observations of lagging window if period elapsed.
      */
     function pokeWindowValues(TokenConfig memory config)
         internal
@@ -299,7 +303,7 @@ contract UniswapAnchoredView is UniswapConfig {
 
         Observation memory newObservation = newObservations[symbolHash];
 
-        // Update new and old observations if elapsed time is greater than or equal to anchor period
+        // update new and old observations if elapsed time is greater than or equal to anchor period
         uint256 timeElapsed = block.timestamp - newObservation.timestamp; // solhint-disable-line
         if (timeElapsed >= anchorPeriod) {
             oldObservations[symbolHash].timestamp = newObservation.timestamp;
@@ -337,8 +341,8 @@ contract UniswapAnchoredView is UniswapConfig {
     }
 
     /**
-     * @notice Recovers the source address which signed a message
-     * @dev Comparing to a claimed address would add nothing,
+     * @notice recovers the source address which signed a message
+     * @dev comparing to a claimed address would add nothing,
      *  as the caller could simply perform the recover and claim that address.
      * @param message the data that was presumably signed
      * @param signature the fingerprint of the data + private key
@@ -350,11 +354,7 @@ contract UniswapAnchoredView is UniswapConfig {
         return ecrecover(hash, v, r, s);
     }
 
-    /// @dev Overflow proof multiplication
     function mul(uint256 a, uint256 b) internal pure returns (uint256) {
-        if (a == 0) return 0;
-        uint256 c = a * b;
-        require(c / a == b, "multiplication overflow");
-        return c;
+        return a * b;
     }
 }

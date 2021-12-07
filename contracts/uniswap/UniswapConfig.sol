@@ -2,17 +2,22 @@
 pragma solidity ^0.8.4;
 
 import "../interfaces/IcERC20.sol";
+import "./Structs.sol";
 
 contract UniswapConfig {
-    /// @dev Describe how to interpret the fixedPrice in the TokenConfig.
+    /**
+     * @dev describe how to interpret the fixedPrice in the TokenConfig.
+     */
     enum PriceSource {
-        FIXED_ETH, /// implies the fixedPrice is a constant multiple of the ETH price (which varies)
-        FIXED_USD, /// implies the fixedPrice is a constant multiple of the USD price (which is 1)
-        REPORTER /// implies the price is set by the reporter
+        FIXED_ETH, // implies the fixedPrice is a constant multiple of the ETH price (which varies)
+        FIXED_USD, // implies the fixedPrice is a constant multiple of the USD price (which is 1)
+        REPORTER // implies the price is set by the reporter
     }
 
-    /// @dev Describe how the USD price should be determined for an asset.
-    ///  There should be 1 TokenConfig object for each supported asset, passed in the constructor.
+    /**
+     * @dev describe how the USD price should be determined for an asset.
+     *      There should be 1 TokenConfig object for each supported asset, passed in the constructor.
+     */
     struct TokenConfig {
         address cToken;
         address underlying;
@@ -24,8 +29,10 @@ contract UniswapConfig {
         bool isUniswapReversed;
     }
 
-    /// @notice the max number of tokens this contract is hardcoded to support
-    /// @dev Do not change this variable without updating all the fields throughout the contract.
+    /**
+     * @notice the max number of tokens this contract is hardcoded to support
+     * @dev do not change this variable without updating all the fields throughout the contract.
+     */
     uint256 public constant MAX_TOKENS = 6;
 
     /// @notice the number of tokens this contract actually supports
@@ -88,7 +95,7 @@ contract UniswapConfig {
     bool internal immutable isUniswapReversed05;
 
     /**
-     * @notice Construct an immutable store of configs into the contract data
+     * @notice construct an immutable store of configs into the contract data
      * @param configs the configs for the supported assets
      */
     constructor(TokenConfig[] memory configs) {
