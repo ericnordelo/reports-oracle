@@ -126,6 +126,16 @@ contract UniswapAnchoredView is UniswapConfig {
         return priceInternal(config);
     }
 
+    /**
+     * @notice get the price of a token
+     * @param token the token address for price retrieval
+     * @return currentPrice Price denominated in USD, with 6 decimals, for the given token address
+     */
+    function price(address token) external view returns (uint256 currentPrice) {
+        TokenConfig memory config = getTokenConfigByUnderlying(token);
+        return priceInternal(config);
+    }
+
     function priceInternal(TokenConfig memory config) internal view returns (uint256 currentPrice) {
         if (config.priceSource == PriceSource.REPORTER) return prices[config.symbolHash];
         if (config.priceSource == PriceSource.FIXED_USD) return config.fixedPrice;
